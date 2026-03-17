@@ -1,0 +1,103 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attackplan Filter</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Die Stämme</p>
+        <h1>Attackplan Filter</h1>
+        <p class="subtitle">Filtere Angriffscodes nach Spielern einer gewählten Welt.</p>
+      </div>
+
+      <div class="world-picker">
+        <label class="world-picker__label" for="server-select">Welt</label>
+        <div class="world-picker__control">
+          <select id="server-select" aria-label="Welt auswählen"></select>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel panel--search">
+        <div class="panel__header">
+          <h2>Spieler auswählen</h2>
+          <span id="player-count" class="muted"></span>
+        </div>
+
+        <div class="search-block">
+          <label for="player-search" class="sr-only">Spieler suchen</label>
+          <input
+            id="player-search"
+            class="search-input"
+            type="text"
+            autocomplete="off"
+            placeholder="Spielernamen suchen und per Klick aktivieren"
+          >
+          <div id="autocomplete" class="autocomplete" hidden></div>
+        </div>
+
+        <div class="panel__header panel__header--compact">
+          <h3>Aktive Spieler</h3>
+          <span id="active-count" class="muted">0 ausgewählt</span>
+        </div>
+        <div id="active-players" class="chip-list">
+          <p class="empty-state">Noch keine Spieler ausgewählt.</p>
+        </div>
+      </section>
+
+      <section class="panel panel--codes">
+        <div class="panel__header">
+          <h2>Angriffscodes</h2>
+          <span id="attack-summary" class="muted">0 Zeilen</span>
+        </div>
+
+        <label for="attack-input" class="field-label">Input</label>
+        <textarea
+          id="attack-input"
+          class="code-area"
+          spellcheck="false"
+          placeholder="Je Zeile ein Angriffscode, z. B. 9844&7941&ram&1773864000063..."
+        ></textarea>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-card__label">Gefundene Spieler</span>
+            <strong id="matched-player-count">0</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-card__label">Gefilterte Angriffe</span>
+            <strong id="filtered-attack-count">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel--output">
+        <div class="panel__header">
+          <h2>Output</h2>
+          <button id="copy-output" class="ghost-button" type="button">Kopieren</button>
+        </div>
+        <textarea
+          id="attack-output"
+          class="code-area code-area--output"
+          spellcheck="false"
+          readonly
+          placeholder="Hier erscheinen die Angriffscodes der aktiven Spieler."
+        ></textarea>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <span id="status-text">Serverliste wird geladen...</span>
+      <span class="status-hint">Starte die App ueber localhost, damit der lokale Proxy die Stammdaten ohne Browser-CORS-Blockaden laden kann.</span>
+    </footer>
+  </div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
