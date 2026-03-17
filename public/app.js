@@ -1,4 +1,4 @@
-﻿const SERVER_LIST_URL = "/api/servers";
+const SERVER_LIST_URL = "/proxy?url=https%3A%2F%2Fwww.die-staemme.de%2Fbackend%2Fget_servers.php";
 const STORAGE_KEYS = {
   selectedServer: "attackplan:selected-server",
   activePlayers: "attackplan:active-players",
@@ -200,7 +200,8 @@ async function loadWorldData(serverCode) {
 }
 
 async function fetchWorldFile(serverCode, fileName) {
-  const url = `/api/world/${serverCode}/${fileName}`;
+  const upstreamUrl = `https://${serverCode}.die-staemme.de/map/${fileName}`;
+  const url = `/proxy?url=${encodeURIComponent(upstreamUrl)}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`${fileName} HTTP ${response.status}`);

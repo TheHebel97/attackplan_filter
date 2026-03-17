@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "node server.js"
+    "build": "node -e \"console.log('Cloudflare Pages: no build step required.')\""
   }
 }
