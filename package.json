@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "node -e \"console.log('Cloudflare Pages: no build step required.')\""
+    "build": "node -e \"console.log('Cloudflare Pages: no build step required.')\"",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.74.0"
   }
 }
