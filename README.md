@@ -5,7 +5,7 @@ Das Repo ist fuer Cloudflare Pages im GitHub-Flow vorbereitet.
 ## Struktur
 
 - `public/` enthaelt das statische Frontend
-- `functions/proxy.ts` ist die Cloudflare Pages Function fuer die Proxy-Requests
+- `functions/proxy.js` ist die Cloudflare Pages Function fuer die Proxy-Requests
 
 ## Cloudflare Pages
 

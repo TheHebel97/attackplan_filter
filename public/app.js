@@ -1,4 +1,20 @@
 const SERVER_LIST_URL = "/proxy?url=https%3A%2F%2Fwww.die-staemme.de%2Fbackend%2Fget_servers.php";
+const FALLBACK_SERVERS = [
+  "dec4",
+  "dep19",
+  "dep20",
+  "de243",
+  "de244",
+  "de245",
+  "de246",
+  "de247",
+  "de248",
+  "de249",
+  "de250",
+  "de251",
+  "de252",
+  "de253",
+].map((code) => ({ code, url: `https://${code}.die-staemme.de` }));
 const STORAGE_KEYS = {
   selectedServer: "attackplan:selected-server",
   activePlayers: "attackplan:active-players",
@@ -112,31 +128,27 @@ function bindEvents() {
 }
 
 async function loadServers() {
+  setStatus("Serverliste wird geladen...");
+
   try {
-    setStatus("Serverliste wird geladen...");
     const response = await fetch(SERVER_LIST_URL);
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw await buildFetchError(response, `Serverliste HTTP ${response.status}`);
     }
 
     const raw = await response.text();
-    state.servers = parseServerList(raw);
-    renderServerSelect();
-
-    const storedServer = localStorage.getItem(STORAGE_KEYS.selectedServer);
-    const fallbackServer = state.servers.find((server) => server.code === storedServer)?.code || state.servers[0]?.code || "";
-    if (!fallbackServer) {
-      throw new Error("Keine Server gefunden.");
+    const parsedServers = parseServerList(raw);
+    if (!parsedServers.length) {
+      throw new Error("Keine Server aus der Live-Antwort erkannt.");
     }
 
-    state.selectedServer = fallbackServer;
-    elements.serverSelect.value = fallbackServer;
-    localStorage.setItem(STORAGE_KEYS.selectedServer, fallbackServer);
-    await loadWorldData(fallbackServer);
-    updateAttackAnalysis();
+    state.servers = parsedServers;
+    await hydrateInitialServerSelection();
+    setStatus("Serverliste geladen.");
   } catch (error) {
-    renderServerSelect();
-    setStatus(`Serverliste konnte nicht geladen werden: ${error.message}`);
+    state.servers = FALLBACK_SERVERS;
+    await hydrateInitialServerSelection();
+    setStatus(`Serverliste live fehlgeschlagen, Fallback genutzt: ${error.message}`);
   }
 }
 
@@ -160,6 +172,42 @@ function renderServerSelect() {
     ? state.servers.map((server) => `<option value="${server.code}">${server.code.toUpperCase()}</option>`).join("")
     : '<option value="">Keine Welten verfuegbar</option>';
   elements.serverSelect.innerHTML = options;
+}
+
+async function hydrateInitialServerSelection() {
+  renderServerSelect();
+
+  const storedServer = localStorage.getItem(STORAGE_KEYS.selectedServer);
+  const initialServer = state.servers.find((server) => server.code === storedServer)?.code || state.servers[0]?.code || "";
+  if (!initialServer) {
+    throw new Error("Keine Server gefunden.");
+  }
+
+  state.selectedServer = initialServer;
+  elements.serverSelect.value = initialServer;
+  localStorage.setItem(STORAGE_KEYS.selectedServer, initialServer);
+  await loadWorldData(initialServer);
+  updateAttackAnalysis();
+}
+
+async function buildFetchError(response, fallbackMessage) {
+  try {
+    const payload = await response.clone().json();
+    if (payload?.error) {
+      return new Error(payload.error);
+    }
+  } catch {
+  }
+
+  try {
+    const text = (await response.clone().text()).trim();
+    if (text) {
+      return new Error(text);
+    }
+  } catch {
+  }
+
+  return new Error(fallbackMessage);
 }
 
 async function loadWorldData(serverCode) {
@@ -204,7 +252,7 @@ async function fetchWorldFile(serverCode, fileName) {
   const url = `/proxy?url=${encodeURIComponent(upstreamUrl)}`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`${fileName} HTTP ${response.status}`);
+    throw await buildFetchError(response, `${fileName} HTTP ${response.status}`);
   }
   return response.text();
 }
@@ -480,3 +528,7 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+
+
+
