@@ -1,20 +1,16 @@
 # Attackplan Filter
 
-Das Repo ist fuer Cloudflare Pages im GitHub-Flow vorbereitet.
+Das Repo funktioniert mit dem aktuellen Wrangler-Setup als Cloudflare Worker mit statischen Assets.
 
 ## Struktur
 
 - `public/` enthaelt das statische Frontend
-- `functions/proxy.js` ist die Cloudflare Pages Function fuer die Proxy-Requests
+- `worker.js` liefert die Assets aus und behandelt `/proxy`
+- `functions/` ist fuer ein optionales Pages-Setup vorhanden, wird vom aktuellen Wrangler-Deploy aber nicht genutzt
 
-## Cloudflare Pages
+## Aktuelles Deployment
 
-- Framework preset: `None`
-- Build command: `npm run build`
-- Build output directory: `public`
-- Kein `wrangler.toml` noetig fuer GitHub-basiertes Pages-Hosting
-- Kein Deploy-Command noetig; Cloudflare Pages deployed direkt aus dem Repository
+- Preview lokal: `npm run preview`
+- Deploy: `npm run deploy`
 
-## Hinweis
-
-Wenn Cloudflare stattdessen `npx wrangler deploy` ausfuehrt, ist das ein Worker-Deploypfad und fuer dieses Repo falsch. In dem Fall im Cloudflare-Projekt den Pages/Git-Deploy verwenden, nicht Wrangler-Deploy.
+Wrangler nutzt `wrangler.jsonc`, serviert die Dateien aus `public/` und beantwortet `/proxy` ueber `worker.js`.
