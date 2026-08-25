@@ -19,9 +19,14 @@ const STORAGE_KEYS = {
   selectedServer: "attackplan:selected-server",
   activePlayers: "attackplan:active-players",
   attackInput: "attackplan:attack-input",
+  outputTab: "attackplan:output-tab",
 };
-const CACHE_TTL_MS = 15 * 60 * 1000;
-
+const OUTPUT_TABS = {
+  default: "default",
+  split: "split",
+  player: "player",
+  unit: "unit",
+};
 const state = {
   servers: [],
   selectedServer: "",
@@ -33,16 +38,33 @@ const state = {
   attacks: [],
   attackBuckets: new Map(),
   villageOwnerCache: new Map(),
+  outputTab: OUTPUT_TABS.default,
 };
 
 const elements = {
   serverSelect: document.querySelector("#server-select"),
   playerSearch: document.querySelector("#player-search"),
   autocomplete: document.querySelector("#autocomplete"),
+  suggestedPlayers: document.querySelector("#suggested-players"),
+  suggestedCount: document.querySelector("#suggested-count"),
   activePlayers: document.querySelector("#active-players"),
   attackInput: document.querySelector("#attack-input"),
   attackOutput: document.querySelector("#attack-output"),
-  copyOutput: document.querySelector("#copy-output"),
+  attackOutputSnob: document.querySelector("#attack-output-snob"),
+  attackOutputOther: document.querySelector("#attack-output-other"),
+  copyOutputDefault: document.querySelector("#copy-output-default"),
+  copyOutputSnob: document.querySelector("#copy-output-snob"),
+  copyOutputOther: document.querySelector("#copy-output-other"),
+  tabDefault: document.querySelector("#tab-default"),
+  tabSplit: document.querySelector("#tab-split"),
+  tabPlayer: document.querySelector("#tab-player"),
+  tabUnit: document.querySelector("#tab-unit"),
+  outputPaneDefault: document.querySelector("#output-pane-default"),
+  outputPaneSplit: document.querySelector("#output-pane-split"),
+  outputPanePlayer: document.querySelector("#output-pane-player"),
+  outputPaneUnit: document.querySelector("#output-pane-unit"),
+  outputByPlayer: document.querySelector("#output-by-player"),
+  outputByUnit: document.querySelector("#output-by-unit"),
   statusText: document.querySelector("#status-text"),
   playerCount: document.querySelector("#player-count"),
   activeCount: document.querySelector("#active-count"),
@@ -55,7 +77,9 @@ document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   restoreAttackInput();
+  restoreOutputTab();
   bindEvents();
+  selectOutputTab(state.outputTab);
   await loadServers();
 }
 
@@ -113,18 +137,34 @@ function bindEvents() {
     updateAttackAnalysis();
   });
 
-  elements.copyOutput.addEventListener("click", async () => {
-    if (!elements.attackOutput.value) {
+  elements.tabDefault.addEventListener("click", () => selectOutputTab(OUTPUT_TABS.default));
+  elements.tabSplit.addEventListener("click", () => selectOutputTab(OUTPUT_TABS.split));
+  elements.tabPlayer.addEventListener("click", () => selectOutputTab(OUTPUT_TABS.player));
+  elements.tabUnit.addEventListener("click", () => selectOutputTab(OUTPUT_TABS.unit));
+
+  bindCopyButton(elements.copyOutputDefault, () => elements.attackOutput.value, "Aktuelle Ausgabe in die Zwischenablage kopiert.");
+  bindCopyButton(elements.copyOutputSnob, () => elements.attackOutputSnob.value, "Snob-Ausgabe in die Zwischenablage kopiert.");
+  bindCopyButton(elements.copyOutputOther, () => elements.attackOutputOther.value, "Restliche Ausgabe in die Zwischenablage kopiert.");
+}
+
+function bindCopyButton(button, getValue, successMessage) {
+  button.addEventListener("click", async () => {
+    const value = getValue();
+    if (!value) {
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(elements.attackOutput.value);
-      setStatus("Output in die Zwischenablage kopiert.");
-    } catch (error) {
-      setStatus(`Kopieren fehlgeschlagen: ${error.message}`);
-    }
+    await copyText(value, successMessage);
   });
+}
+
+async function copyText(value, successMessage) {
+  try {
+    await navigator.clipboard.writeText(value);
+    setStatus(successMessage);
+  } catch (error) {
+    setStatus(`Kopieren fehlgeschlagen: ${error.message}`);
+  }
 }
 
 async function loadServers() {
@@ -211,14 +251,6 @@ async function buildFetchError(response, fallbackMessage) {
 }
 
 async function loadWorldData(serverCode) {
-  const cacheKey = `attackplan:world-cache:${serverCode}`;
-  const cached = readSessionCache(cacheKey);
-  if (cached) {
-    hydrateWorldData(cached, serverCode);
-    setStatus(`Weltdaten fuer ${serverCode.toUpperCase()} aus dem Session-Cache geladen.`);
-    return;
-  }
-
   try {
     setStatus(`Weltdaten fuer ${serverCode.toUpperCase()} werden geladen...`);
     const [playerText, villageText] = await Promise.all([
@@ -229,10 +261,8 @@ async function loadWorldData(serverCode) {
     const payload = {
       players: parsePlayers(playerText),
       villages: parseVillages(villageText),
-      savedAt: Date.now(),
     };
 
-    sessionStorage.setItem(cacheKey, JSON.stringify(payload));
     hydrateWorldData(payload, serverCode);
     setStatus(`Weltdaten fuer ${serverCode.toUpperCase()} geladen.`);
   } catch (error) {
@@ -325,6 +355,11 @@ function restoreAttackInput() {
   elements.attackInput.value = localStorage.getItem(STORAGE_KEYS.attackInput) || "";
 }
 
+function restoreOutputTab() {
+  const storedTab = localStorage.getItem(STORAGE_KEYS.outputTab);
+  state.outputTab = Object.values(OUTPUT_TABS).includes(storedTab) ? storedTab : OUTPUT_TABS.default;
+}
+
 function decodeGameText(value) {
   return decodeURIComponent((value || "").replace(/\+/g, " "));
 }
@@ -339,10 +374,23 @@ function updateAutocomplete() {
   const results = state.players
     .filter((player) => player.name.toLocaleLowerCase("de").includes(term))
     .sort((left, right) => {
-      const leftStarts = left.name.toLocaleLowerCase("de").startsWith(term) ? 0 : 1;
-      const rightStarts = right.name.toLocaleLowerCase("de").startsWith(term) ? 0 : 1;
+      const leftName = left.name.toLocaleLowerCase("de");
+      const rightName = right.name.toLocaleLowerCase("de");
+      const leftStarts = leftName.startsWith(term) ? 0 : 1;
+      const rightStarts = rightName.startsWith(term) ? 0 : 1;
       if (leftStarts !== rightStarts) {
         return leftStarts - rightStarts;
+      }
+
+      const leftAttackCount = state.attackBuckets.get(left.id)?.length || 0;
+      const rightAttackCount = state.attackBuckets.get(right.id)?.length || 0;
+      const leftSuggested = leftAttackCount > 0 ? 0 : 1;
+      const rightSuggested = rightAttackCount > 0 ? 0 : 1;
+      if (leftSuggested !== rightSuggested) {
+        return leftSuggested - rightSuggested;
+      }
+      if (leftAttackCount !== rightAttackCount) {
+        return rightAttackCount - leftAttackCount;
       }
       return left.name.localeCompare(right.name, "de");
     })
@@ -357,6 +405,13 @@ function updateAutocomplete() {
     .map((player, index) => {
       const attackCount = state.attackBuckets.get(player.id)?.length || 0;
       const selected = state.activePlayers.has(player.id);
+      const meta = [`${attackCount} Angriffe`];
+      if (attackCount > 0) {
+        meta.push("im Plan");
+      }
+      if (selected) {
+        meta.push("aktiv");
+      }
       return `
         <button
           class="autocomplete__item"
@@ -365,7 +420,7 @@ function updateAutocomplete() {
           data-active="${index === 0 ? "true" : "false"}"
         >
           <span>${escapeHtml(player.name)}</span>
-          <span class="autocomplete__meta">${attackCount} Angriffe${selected ? " | aktiv" : ""}</span>
+          <span class="autocomplete__meta">${meta.join(" | ")}</span>
         </button>
       `;
     })
@@ -374,7 +429,8 @@ function updateAutocomplete() {
   elements.autocomplete.hidden = false;
   elements.autocomplete.querySelectorAll(".autocomplete__item").forEach((item) => {
     item.addEventListener("mouseenter", () => {
-      setHighlightedAutocompleteItem(getAutocompleteItems(), getAutocompleteItems().indexOf(item));
+      const items = getAutocompleteItems();
+      setHighlightedAutocompleteItem(items, items.indexOf(item));
     });
     item.addEventListener("click", () => activatePlayer(item.dataset.playerId));
   });
@@ -409,6 +465,7 @@ function activatePlayer(playerId) {
   persistActivePlayers();
   elements.playerSearch.value = "";
   hideAutocomplete();
+  renderSuggestedPlayers();
   renderActivePlayers();
   renderOutput();
 }
@@ -416,8 +473,48 @@ function activatePlayer(playerId) {
 function deactivatePlayer(playerId) {
   state.activePlayers.delete(playerId);
   persistActivePlayers();
+  renderSuggestedPlayers();
   renderActivePlayers();
   renderOutput();
+  updateAutocomplete();
+}
+
+function renderSuggestedPlayers() {
+  const players = getSuggestedPlayers();
+  elements.suggestedCount.textContent = `${players.length} vorgeschlagen`;
+
+  if (!players.length) {
+    elements.suggestedPlayers.innerHTML = '<p class="empty-state">Noch keine Spieler aus dem Angriffsplan erkannt.</p>';
+    return;
+  }
+
+  elements.suggestedPlayers.innerHTML = players
+    .map(({ player, attackCount }) => `
+      <button class="player-chip player-chip--suggested" type="button" data-player-id="${player.id}">
+        <span>${escapeHtml(player.name)}</span>
+        <strong>${attackCount}</strong>
+      </button>
+    `)
+    .join("");
+
+  elements.suggestedPlayers.querySelectorAll(".player-chip").forEach((button) => {
+    button.addEventListener("click", () => activatePlayer(button.dataset.playerId));
+  });
+}
+
+function getSuggestedPlayers() {
+  return Array.from(state.attackBuckets.entries())
+    .map(([playerId, attacks]) => ({
+      player: state.playerMap.get(playerId),
+      attackCount: attacks.length,
+    }))
+    .filter(({ player }) => player && !state.activePlayers.has(player.id))
+    .sort((left, right) => {
+      if (left.attackCount !== right.attackCount) {
+        return right.attackCount - left.attackCount;
+      }
+      return left.player.name.localeCompare(right.player.name, "de");
+    });
 }
 
 function renderActivePlayers() {
@@ -474,6 +571,7 @@ function updateAttackAnalysis() {
 
   elements.attackSummary.textContent = `${state.attacks.length} Zeilen`;
   elements.matchedPlayerCount.textContent = String(state.attackBuckets.size);
+  renderSuggestedPlayers();
   renderActivePlayers();
   renderOutput();
   updateAutocomplete();
@@ -490,30 +588,141 @@ function resolveVillageOwner(villageId) {
 }
 
 function renderOutput() {
-  const filtered = Array.from(state.activePlayers)
-    .flatMap((playerId) => state.attackBuckets.get(playerId) || []);
+  const filtered = getFilteredAttacks();
+  const splitOutput = splitAttacks(filtered);
 
   elements.attackOutput.value = filtered.join("\n");
+  elements.attackOutputSnob.value = splitOutput.snob.join("\n");
+  elements.attackOutputOther.value = splitOutput.other.join("\n");
+  renderGroupedOutput(
+    elements.outputByPlayer,
+    getAttacksGroupedByPlayer(),
+    "Aktiviere Spieler mit passenden Angriffen, um getrennte Plaene zu erzeugen.",
+    "Spieler",
+  );
+  renderGroupedOutput(
+    elements.outputByUnit,
+    getAttacksGroupedByUnit(filtered),
+    "Keine Einheitentypen in der aktuellen Ausgabe erkannt.",
+    "Einheitentyp",
+  );
   elements.filteredAttackCount.textContent = String(filtered.length);
 }
 
-function readSessionCache(cacheKey) {
-  const raw = sessionStorage.getItem(cacheKey);
-  if (!raw) {
-    return null;
+function getFilteredAttacks() {
+  return Array.from(state.activePlayers)
+    .flatMap((playerId) => state.attackBuckets.get(playerId) || []);
+}
+
+function splitAttacks(attacks) {
+  const snob = [];
+  const other = [];
+
+  for (const attack of attacks) {
+    if (getAttackType(attack) === "snob") {
+      snob.push(attack);
+    } else {
+      other.push(attack);
+    }
   }
 
-  try {
-    const payload = JSON.parse(raw);
-    if (!payload.savedAt || Date.now() - payload.savedAt > CACHE_TTL_MS) {
-      sessionStorage.removeItem(cacheKey);
-      return null;
+  return { snob, other };
+}
+
+function getAttackType(attackCode) {
+  return attackCode.split("&")[2]?.trim().toLocaleLowerCase("de") || "";
+}
+
+function getAttacksGroupedByPlayer() {
+  return Array.from(state.activePlayers)
+    .map((playerId) => ({
+      label: state.playerMap.get(playerId)?.name || `Spieler ${playerId}`,
+      attacks: state.attackBuckets.get(playerId) || [],
+    }))
+    .filter((group) => group.attacks.length > 0)
+    .sort((left, right) => left.label.localeCompare(right.label, "de"));
+}
+
+function getAttacksGroupedByUnit(attacks) {
+  const groups = new Map();
+
+  for (const attack of attacks) {
+    const type = getAttackType(attack) || "unbekannt";
+    if (!groups.has(type)) {
+      groups.set(type, []);
     }
-    return payload;
-  } catch {
-    sessionStorage.removeItem(cacheKey);
-    return null;
+    groups.get(type).push(attack);
   }
+
+  return Array.from(groups, ([type, groupedAttacks]) => ({
+    label: type === "unbekannt" ? "Unbekannt" : type.toLocaleUpperCase("de"),
+    attacks: groupedAttacks,
+  })).sort((left, right) => left.label.localeCompare(right.label, "de"));
+}
+
+function renderGroupedOutput(container, groups, emptyMessage, groupKind) {
+  if (!groups.length) {
+    container.innerHTML = `<p class="empty-state grouped-output__empty">${escapeHtml(emptyMessage)}</p>`;
+    return;
+  }
+
+  container.innerHTML = groups
+    .map((group, index) => `
+      <article class="split-output__card">
+        <div class="panel__header panel__header--compact">
+          <div>
+            <h3>${escapeHtml(group.label)}</h3>
+            <span class="grouped-output__count">${group.attacks.length} ${group.attacks.length === 1 ? "Angriff" : "Angriffe"}</span>
+          </div>
+          <button class="ghost-button" type="button" data-copy-group="${index}">Kopieren</button>
+        </div>
+        <textarea
+          class="code-area grouped-output__area"
+          data-group-output="${index}"
+          spellcheck="false"
+          readonly
+        ></textarea>
+      </article>
+    `)
+    .join("");
+
+  container.querySelectorAll("[data-group-output]").forEach((textarea) => {
+    const group = groups[Number(textarea.dataset.groupOutput)];
+    textarea.value = group.attacks.join("\n");
+  });
+
+  container.querySelectorAll("[data-copy-group]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const group = groups[Number(button.dataset.copyGroup)];
+      await copyText(group.attacks.join("\n"), `${groupKind} ${group.label}: Plan in die Zwischenablage kopiert.`);
+    });
+  });
+}
+
+function selectOutputTab(tabId) {
+  const nextTab = Object.values(OUTPUT_TABS).includes(tabId) ? tabId : OUTPUT_TABS.default;
+  state.outputTab = nextTab;
+  localStorage.setItem(STORAGE_KEYS.outputTab, nextTab);
+
+  const tabs = {
+    [OUTPUT_TABS.default]: elements.tabDefault,
+    [OUTPUT_TABS.split]: elements.tabSplit,
+    [OUTPUT_TABS.player]: elements.tabPlayer,
+    [OUTPUT_TABS.unit]: elements.tabUnit,
+  };
+  const panes = {
+    [OUTPUT_TABS.default]: elements.outputPaneDefault,
+    [OUTPUT_TABS.split]: elements.outputPaneSplit,
+    [OUTPUT_TABS.player]: elements.outputPanePlayer,
+    [OUTPUT_TABS.unit]: elements.outputPaneUnit,
+  };
+
+  Object.entries(tabs).forEach(([id, tab]) => {
+    tab.setAttribute("aria-selected", String(id === nextTab));
+  });
+  Object.entries(panes).forEach(([id, pane]) => {
+    pane.hidden = id !== nextTab;
+  });
 }
 
 function setStatus(message) {
@@ -528,7 +737,4 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
-
-
-
 

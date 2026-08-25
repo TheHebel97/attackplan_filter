@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
   <title>Attackplan Filter</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
@@ -10,15 +11,15 @@
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Die St‰mme</p>
+        <p class="eyebrow">Die Staemme</p>
         <h1>Attackplan Filter</h1>
-        <p class="subtitle">Filtere Angriffscodes nach Spielern einer gew‰hlten Welt.</p>
+        <p class="subtitle">Filtere Angriffscodes nach Spielern einer gewaehlten Welt.</p>
       </div>
 
       <div class="world-picker">
         <label class="world-picker__label" for="server-select">Welt</label>
         <div class="world-picker__control">
-          <select id="server-select" aria-label="Welt ausw‰hlen"></select>
+          <select id="server-select" aria-label="Welt auswaehlen"></select>
         </div>
       </div>
     </header>
@@ -26,7 +27,7 @@
     <main class="layout">
       <section class="panel panel--search">
         <div class="panel__header">
-          <h2>Spieler ausw‰hlen</h2>
+          <h2>Spieler auswaehlen</h2>
           <span id="player-count" class="muted"></span>
         </div>
 
@@ -43,11 +44,19 @@
         </div>
 
         <div class="panel__header panel__header--compact">
+          <h3>Vorgeschlagene Spieler</h3>
+          <span id="suggested-count" class="muted">0 vorgeschlagen</span>
+        </div>
+        <div id="suggested-players" class="chip-list">
+          <p class="empty-state">Noch keine Spieler aus dem Angriffsplan erkannt.</p>
+        </div>
+
+        <div class="panel__header panel__header--compact">
           <h3>Aktive Spieler</h3>
-          <span id="active-count" class="muted">0 ausgew‰hlt</span>
+          <span id="active-count" class="muted">0 ausgew√§hlt</span>
         </div>
         <div id="active-players" class="chip-list">
-          <p class="empty-state">Noch keine Spieler ausgew‰hlt.</p>
+          <p class="empty-state">Noch keine Spieler ausgew√§hlt.</p>
         </div>
       </section>
 
@@ -80,15 +89,80 @@
       <section class="panel panel--output">
         <div class="panel__header">
           <h2>Output</h2>
-          <button id="copy-output" class="ghost-button" type="button">Kopieren</button>
         </div>
-        <textarea
-          id="attack-output"
-          class="code-area code-area--output"
-          spellcheck="false"
-          readonly
-          placeholder="Hier erscheinen die Angriffscodes der aktiven Spieler."
-        ></textarea>
+
+        <div class="tab-bar" role="tablist" aria-label="Output-Ansichten">
+          <button id="tab-default" class="tab-button" type="button" role="tab" aria-controls="output-pane-default" aria-selected="true">
+            Aktuelle Ausgabe
+          </button>
+          <button id="tab-split" class="tab-button" type="button" role="tab" aria-controls="output-pane-split" aria-selected="false">
+            Spezifische Ausgabe
+          </button>
+          <button id="tab-player" class="tab-button" type="button" role="tab" aria-controls="output-pane-player" aria-selected="false">
+            Nach Spieler
+          </button>
+          <button id="tab-unit" class="tab-button" type="button" role="tab" aria-controls="output-pane-unit" aria-selected="false">
+            Nach Einheit
+          </button>
+        </div>
+
+        <div id="output-pane-default" class="output-pane">
+          <div class="panel__header panel__header--compact">
+            <h3>Aktuelle Ausgabe</h3>
+            <button id="copy-output-default" class="ghost-button" type="button">Kopieren</button>
+          </div>
+          <textarea
+            id="attack-output"
+            class="code-area code-area--output"
+            spellcheck="false"
+            readonly
+            placeholder="Hier erscheinen die Angriffscodes der aktiven Spieler."
+          ></textarea>
+        </div>
+
+        <div id="output-pane-split" class="output-pane" hidden>
+          <div class="split-output">
+            <div class="split-output__card">
+              <div class="panel__header panel__header--compact">
+                <h3>Nur Snob</h3>
+                <button id="copy-output-snob" class="ghost-button" type="button">Kopieren</button>
+              </div>
+              <textarea
+                id="attack-output-snob"
+                class="code-area"
+                spellcheck="false"
+                readonly
+                placeholder="Hier erscheinen nur Snob-Angriffe."
+              ></textarea>
+            </div>
+
+            <div class="split-output__card">
+              <div class="panel__header panel__header--compact">
+                <h3>Alles andere</h3>
+                <button id="copy-output-other" class="ghost-button" type="button">Kopieren</button>
+              </div>
+              <textarea
+                id="attack-output-other"
+                class="code-area"
+                spellcheck="false"
+                readonly
+                placeholder="Hier erscheinen alle nicht als Snob markierten Angriffe."
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div id="output-pane-player" class="output-pane" hidden>
+          <div id="output-by-player" class="split-output grouped-output">
+            <p class="empty-state grouped-output__empty">Aktiviere Spieler mit passenden Angriffen, um getrennte Plaene zu erzeugen.</p>
+          </div>
+        </div>
+
+        <div id="output-pane-unit" class="output-pane" hidden>
+          <div id="output-by-unit" class="split-output grouped-output">
+            <p class="empty-state grouped-output__empty">Keine Einheitentypen in der aktuellen Ausgabe erkannt.</p>
+          </div>
+        </div>
       </section>
     </main>
 
@@ -101,4 +175,3 @@
   <script src="./app.js" defer></script>
 </body>
 </html>
-
